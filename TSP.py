@@ -12,6 +12,7 @@ import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 import myFunc # A collection of personal functions separated for tideness
+import networkx as nx
 
 os.system("clear")
 os.system("clear")
@@ -111,7 +112,9 @@ class TSP:
             order in which the cities are visitied.
 
         """
+        
         tour = [start]
+        tourTracker = [tour]
         notInTour = self.cities.copy()
         notInTour.remove(start)
 
@@ -130,11 +133,12 @@ class TSP:
                     closestCity = j
             
             tour.append(closestCity)
+            tourTracker.append(tour.copy())
             notInTour.remove(closestCity)
         
         #print("Finished computing NN tour")
-
-        return tour
+        
+        return tour, tourTracker
     
     
     def getTour_OutlierInsertion(self, start):
@@ -158,20 +162,22 @@ class TSP:
         """
 
         tour = [start]
+        tourTracker = [tour.copy()]
         notInTour = self.cities.copy()
         notInTour.remove(start)
         
         #print("Start computing OI tour")
-
+        tour.append(self.findFarthestCity(notInTour, tour))
         while len(notInTour) > 0:
 
             farthestCity = self.findFarthestCity(notInTour, tour)  
 
             tour = self.cheapestInsertion(tour, farthestCity)
+            tourTracker.append(tour.copy())
             notInTour.remove(farthestCity)
             
         #print("Finished computing OI tour")
-        return tour
+        return tour, tourTracker
 
     def getTour_GRASPedInsertion(self, start, RCL_size):
         """
@@ -179,19 +185,21 @@ class TSP:
         This runs the Outlier Insertion algorithm, but randomizes the insertion step: instead of inserting the selected city in the position that causes the smallest increase in tour length, we insert it in a random position within a Restricted Candidate List (RCL) of good options.
         """
         tour = [start]
+        tourTracker = tour.copy()
         notInTour = self.cities.copy()
         notInTour.remove(start)
         
         #print("Start computing OI tour")
-
+        tour.append(self.findFarthestCity(notInTour, tour))
         while len(notInTour) > 0:
 
             farthestCity = self.findFarthestCity(notInTour, tour)
             tour = self.cheapestInsertion_GRASPed(tour, farthestCity, RCL_size) 
+            tourTracker.append(tour.copy())
             notInTour.remove(farthestCity)
             
         #print("Finished computing OI tour")
-        return tour
+        return tour, tourTracker
     
     def findFarthestCity(self, notInTour, tour):
         closestDist = -1 # Init shortest distance with lowest possible value
@@ -203,17 +211,17 @@ class TSP:
         # Save, for each i, the city in candidate
         # Then select the farthest candidate as city to insert in the tour
         for i in notInTour:
-            for j in tour:
+            for index in range(0, len(tour)):
+                j = tour[index]
                 dist = self.distMatrix[i][j]
                 #print(self.distMatrix)
                 if dist < closestDist or closestCity is None:
                     closestDist = dist
                     closestCity = j # This isn't actually needed
-            
+                
             candidates[i] = float(closestDist)
         
         farthestCity = max(candidates, key=candidates.get) # city chosen to be added in the tour
-        
 
         return farthestCity
 
@@ -233,19 +241,19 @@ class TSP:
         tour : list of ints
             The updated tour with the new city inserted
         """
-        temporaryTour = tour.copy()
+        #temporaryTour = tour.copy()
         index = 0
-        temporaryTour.insert(index, city)
+        #temporaryTour.insert(index, city)
         
-        cost = self.costOfInsertion(temporaryTour, index)
+        cost = self.costOfInsertion(tour, index, city)
         
         #self.distMatrix[tour[i],tour[i+1]]
         #cost = self.computeCosts(temporaryTour)
 
-        for i in range(1, len(tour)):
-            temporaryTour = tour.copy()
-            temporaryTour.insert(i, city)
-            tempoCost = self.costOfInsertion(temporaryTour, i)
+        for i in range(0, len(tour)-1):
+            #temporaryTour = tour.copy()
+            #temporaryTour.insert(i, city)
+            tempoCost = self.costOfInsertion(tour, i, city)
 
             if tempoCost < cost:
                 cost = tempoCost
@@ -254,7 +262,7 @@ class TSP:
         tour.insert(index, city)
         return tour
 
-    def costOfInsertion(self, tour, i):
+    def costOfInsertion(self, tour, i, city):
         """
         Computes the cost of inserting a city in position i of the tour
         Parameters
@@ -269,8 +277,8 @@ class TSP:
         cost : int
             The increase in cost due to the insertion  
         """
-
-        cost = self.distMatrix[tour[i-1],tour[i]] + self.distMatrix[tour[i],tour[i+1]] - self.distMatrix[tour[i-1],tour[i+1]]
+        #print(tour[i])
+        cost = self.distMatrix[tour[i-1],city] + self.distMatrix[city,tour[i+1]] - self.distMatrix[tour[i-1],tour[i+1]]
         return cost
     
     def cheapestInsertion_GRASPed(self, tour, city, RCL_size):
@@ -347,7 +355,7 @@ class TSP:
         return Optimality,0,0
 
             
-    def makeTwoOpt(self, tour):
+    def makeTwoOpt(self, tour, tourTracker):
         print("Starting 2-opt procedure")
         Optimality,i,j = self.isTwoOpt(tour,0)
         if Optimality == True:
@@ -365,10 +373,11 @@ class TSP:
             newTour.extend(reversed(tour[i+1:j+1]))
             newTour.extend(tour[j+1:])
             tour = newTour
+            tourTracker.append(tour.copy())
             Optimality,i,j = self.isTwoOpt(tour, i)
         
         print("Tour is now 2 optimal")
-        return tour
+        return tour, tourTracker
 
 
     def getCitiesCopy(self): 
@@ -521,7 +530,7 @@ def runForNStartingPoints(filePath, n, method):
     
     - *filePath* (string): the path of the file corresponding to the instance
     - *n* (int): the number of starting points to try
-    - *method* (str): What method to use to generate the tour (NN: Neigherst Neighbour, OI: Outlier Insertion)
+    - *method* (str): What method to use to generate the tour (NN: Neigherst Neighbour, OI: Outlier Insertion, OI_GRASP, NN+2OPT, OI+2OPT, OI_GRASP+2OPT)
     
     ### Returns
 
@@ -555,27 +564,27 @@ def runForNStartingPoints(filePath, n, method):
         tour_cost_beforeLS = None
         runningLS = False
         if method == "NN":
-            tour = inst.getTour_NN(startingPoint)
+            tour, tourTracker = inst.getTour_NN(startingPoint)
         elif method == "OI":
-            tour = inst.getTour_OutlierInsertion(startingPoint)
+            tour, tourTracker = inst.getTour_OutlierInsertion(startingPoint)
         elif method == "OI_GRASP":
             if RCL_size is 1:
                 RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
-            tour = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)  
+            tour, tourTracker = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)  
         elif method == "NN+2OPT":
             runningLS = True
-            tour_beforeLS = inst.getTour_NN(startingPoint)
-            tour = inst.makeTwoOpt(tour_beforeLS)
+            tour_beforeLS, tourTracker = inst.getTour_NN(startingPoint)
+            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
         elif method == "OI+2OPT":
             runningLS = True
-            tour_beforeLS = inst.getTour_OutlierInsertion(startingPoint)
-            tour = inst.makeTwoOpt(tour_beforeLS)
+            tour_beforeLS, tourTracker = inst.getTour_OutlierInsertion(startingPoint)
+            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
         elif method == "OI_GRASP+2OPT":
             runningLS = True
             if RCL_size is 1:
                 RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
-            tour_beforeLS = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)
-            tour = inst.makeTwoOpt(tour_beforeLS)
+            tour_beforeLS, tourTracker = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)
+            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
         else:
             print(f"Selected method ({method}) is not supported or incorrectly written")
             return
@@ -606,7 +615,7 @@ def runForNStartingPoints(filePath, n, method):
     df_results.to_csv("Results/Output_" + fileSize + "_" + fileName + "_" + str(method) + ".csv", index=False)
 
     print("runForNStartingPoints is done \n\n")
-    return df_results
+    return df_results, tourTracker, inst
 
 
 
@@ -771,6 +780,9 @@ Point 5: Write a method in the TSP class called isTwoOpt that takes a tour as in
 # Test code
 
 
+    
+
+
 # twoOptTest = TSP("point5_test.tsp")
 # initialTour = [0, 1, 4, 3, 2, 5, 6]
 # print("Initial tour is " + str(initialTour))
@@ -801,7 +813,7 @@ print("--------------------------\n--------------------------\n")
 
 # Try 2-opt on a large instance
 # print("Trying 2-opt on a large instance\n")
-tour_l = runForNStartingPoints(selectedFiles[8],1, "NN+2OPT")["Tour"][0] # This is a large instance
+#tour_l = runForNStartingPoints(selectedFiles[8],1, "OI+2OPT")["Tour"][0] # This is a large instance
 # inst_large8.evaluateSolution(tour_l)
 # print("--------------------------\n--------------------------\n")
 
@@ -856,6 +868,83 @@ def comparisonPlot_beforeAfterLS(df):
 
 
 #tour_l = runForNStartingPoints(selectedFiles[8],1, "NN")["Tour"][0] # This is a large instance
+
+
+
+# LEARN TO MAKE GRAPHS
+filePath = selectedFiles[3]
+df_p, tours, inst = runForNStartingPoints(filePath, 1, "NN+2OPT")
+#print(tours)
+
+
+plt.ion()  # turn on interactive mode
+fig, ax = plt.subplots(figsize=(8,6))
+cost_beforeLS = 0
+for j in range(0, len(tours)):
+    ax.clear() 
+    #print(j)
+    coords = {}
+    with open(filePath, "r") as f:
+        for i, line in enumerate(f, start=1):  # enumerate lines starting from 1
+            if i < 7:   # skip first 6 lines
+                continue
+            parts = line.strip().split()
+            if parts[0] == 'EOF':   # skip empty lines (like EOF)
+                continue
+            city = int(parts[0])
+            x, y = float(parts[1]), float(parts[2])
+            coords[city] = (x, y)
+
+    # Example tour (must be in visiting order, and usually ends with start city)
+    tour = tours.copy()[j]    
+    cost = inst.computeCosts(tour)
+    tour.append(tour[0])
+    tour = [city + 1 for city in tour]
+
+    # Extract x and y positions in order of the tour
+    x_tour = [coords[city][0] for city in tour]
+    y_tour = [coords[city][1] for city in tour]
+    
+    
+    # Plot
+    
+    #plt.figure(figsize=(8,6))
+    plt.scatter([coords[c][0] for c in coords], [coords[c][1] for c in coords], c='blue', s=50)
+
+    # Draw tour path
+    plt.plot(x_tour, y_tour, c='red', linewidth=2, marker='o')
+
+    # Annotate city indices
+    for city, (x, y) in coords.items():
+        plt.text(x+0.5, y+0.5, str(city), fontsize=9)
+
+    
+
+    plt.title("TSP Solution Tour")
+    
+    #ax.text(0.05, 0.95, f"Cost: {cost:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+    ax.text(0.05, 0.95, f"Cost (before/after LS): {cost:.2f}/{cost_beforeLS:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.grid(False)
+    plt.tight_layout()
+    plt.draw()
+    if j < len(coords):
+        plt.pause(0.0015)   # short delay (0.5 sec)
+        cost_beforeLS = cost
+    else:
+        plt.pause(0.0025)
+
+plt.ioff()    
+plt.show()
+
+
+
+#df = pd.DataFrame({ 'from':['A', 'B', 'C','A'], 'to':['D', 'A', 'E','C']})
+# Load coordinates from file
+
+
 
 
 ################################################################
