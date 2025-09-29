@@ -1,0 +1,2 @@
+File name,Start city,Partial cost,Cost,Computation time,RCL size,Tour
+ulysses22,16,87.16655475259003,79.17322713869167,0.00023698806762695312,1,"[16, 21, 3, 17, 7, 0, 15, 12, 11, 13, 14, 5, 4, 10, 8, 9, 20, 19, 18, 6, 2, 1]"

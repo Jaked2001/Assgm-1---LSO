@@ -1,0 +1,21 @@
+NAME: point5_test
+TYPE: TSP
+COMMENT: 14 locations in Testland
+DIMENSION: 14
+EDGE_WEIGHT_TYPE: EUC_2D
+NODE_COORD_SECTION
+1 1 2
+2 2 2
+3 3 2
+4 4 2
+5 5 2
+6 6 2
+7 7 2
+8 7 1
+9 6 1
+10 5 1   
+11 4 1   
+12 3 1   
+13 2 1   
+14 1 1   
+EOF
