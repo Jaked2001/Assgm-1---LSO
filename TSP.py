@@ -441,6 +441,106 @@ class TSP:
         return costs
     
     
+    def runForNStartingPoints(self, filePath, n, method):
+
+        """
+        Run the Nearest Neighbour Heuristics, from n different starting cities in 'inst' instance
+        
+        ### Parameters
+        
+        - *filePath* (string): the path of the file corresponding to the instance
+        - *n* (int): the number of starting points to try
+        - *method* (str): What method to use to generate the tour (NN: Neigherst Neighbour, OI: Outlier Insertion, OI_GRASP, NN+2OPT, OI+2OPT, OI_GRASP+2OPT)
+        
+        ### Returns
+
+        - *df_results* (data frame): A Data Frame containing the following variables:
+            
+            - File name
+            - Start city
+            - Cost
+            - Tour
+        """
+        
+        #output_NNH = generate_output('Output_NNH')
+        fileName = (filePath.split("/")[-1]).split(".")[-2]
+        fileSize = (filePath.split("/")[-2])
+        rList = self.generateRandomList(len(self.cities), n)
+        sample = [ self.cities[i] for i in rList] # This is the list of sample cities for which we are going to solve the TSP
+        print("\nSolving for instance: " + str(fileName) + " of size: " + str(fileSize) + " (" + str(len(self.cities)) + ")")
+        print("Applying method: " + str(method))
+        print("The selected starting points are: " + str(sample) + "\n")
+        RCL_size = 1
+        results = []
+        counter = 0
+        for i in sample:
+            AlgorithmStartTime = time.time()
+            counter += 1
+            if counter % 10 == 0:
+                print("Calculating different starting points: " + str(counter) + "/" + str(n))
+            # This "for loop" solves the TSP for each starting point in "inst" instance
+            startingPoint = i
+            tour_cost_beforeLS = None
+            runningLS = False
+            if method == "NN":
+                tour, tourTracker = self.getTour_NN(startingPoint)
+            elif method == "OI":
+                tour, tourTracker = self.getTour_OutlierInsertion(startingPoint)
+            elif method == "OI_GRASP":
+                if RCL_size is 1:
+                    RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
+                tour, tourTracker = self.getTour_GRASPedInsertion(startingPoint, RCL_size)  
+            elif method == "NN+2OPT":
+                runningLS = True
+                tour_beforeLS, tourTracker = self.getTour_NN(startingPoint)
+                tour, tourTracker = self.makeTwoOpt(tour_beforeLS, tourTracker)
+            elif method == "OI+2OPT":
+                runningLS = True
+                tour_beforeLS, tourTracker = self.getTour_OutlierInsertion(startingPoint)
+                tour, tourTracker = self.makeTwoOpt(tour_beforeLS, tourTracker)
+            elif method == "OI_GRASP+2OPT":
+                runningLS = True
+                if RCL_size is 1:
+                    RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
+                tour_beforeLS, tourTracker = self.getTour_GRASPedInsertion(startingPoint, RCL_size)
+                tour, tourTracker = self.makeTwoOpt(tour_beforeLS, tourTracker)
+            else:
+                print(f"Selected method ({method}) is not supported or incorrectly written")
+                return
+            #print("Done computing from starting point " + str(startingPoint))
+            #print(type(tour_co t_beforeLS))
+            if runningLS == True:
+                #print("Cost before local search was:")
+                tour_cost_beforeLS = self.evaluateSolution(tour_beforeLS)
+            tour_cost = self.evaluateSolution(tour)
+            
+            AlgorithmEndtTime = time.time()
+            # Create a dictionary with the tour info (easier to convert to df)
+            results.append({
+                "File name" : fileName,
+                "Start city" : i,
+                "Partial cost" : tour_cost_beforeLS,
+                "Cost" : tour_cost,
+                "Computation time" : str((AlgorithmEndtTime - AlgorithmStartTime)),
+                "RCL size" : RCL_size,
+                "Tour" : tour
+            })
+            #output_NNH.write(str(fileName) + "," + str(startingPoint) + "," + str(tour_cost) + "\n")
+        
+        # Convert to DataFrame using pandas
+        df_results = pd.DataFrame(results)
+
+        # Save to CSV
+        df_results.to_csv("Results/Output_" + fileSize + "_" + fileName + "_" + str(method) + ".csv", index=False)
+
+        print("runForNStartingPoints is done \n\n")
+        return df_results, tourTracker, self
+    
+    def generateRandomList(self, size, amount):
+        rList = sorted(random.sample(range(size), amount))
+        return rList
+    
+    
 ##############################################################################   
   
 random.seed(200240124) # set seed for reproducibility
@@ -494,9 +594,6 @@ def selectFiles(nSmall, nMedium, nLarge):
 
     return(selectedPaths)
 
-def generateRandomList(size, amount):
-    rList = sorted(random.sample(range(size), amount))
-    return rList
 
 def generate_output(fileName):
     name = fileName + '.csv'
@@ -521,101 +618,6 @@ def plot_costPerStartingPoint(df):
     plt.tight_layout()
     plt.show()
 
-def runForNStartingPoints(filePath, n, method):
-
-    """
-    Run the Nearest Neighbour Heuristics, from n different starting cities in 'inst' instance
-    
-    ### Parameters
-    
-    - *filePath* (string): the path of the file corresponding to the instance
-    - *n* (int): the number of starting points to try
-    - *method* (str): What method to use to generate the tour (NN: Neigherst Neighbour, OI: Outlier Insertion, OI_GRASP, NN+2OPT, OI+2OPT, OI_GRASP+2OPT)
-    
-    ### Returns
-
-    - *df_results* (data frame): A Data Frame containing the following variables:
-        
-        - File name
-        - Start city
-        - Cost
-        - Tour
-    """
-    
-    inst = TSP(filePath)
-    #output_NNH = generate_output('Output_NNH')
-    fileName = (filePath.split("/")[-1]).split(".")[-2]
-    fileSize = (filePath.split("/")[-2])
-    rList = generateRandomList(len(inst.cities), n)
-    sample = [ inst.cities[i] for i in rList] # This is the list of sample cities for which we are going to solve the TSP
-    print("\nSolving for instance: " + str(fileName) + " of size: " + str(fileSize) + " (" + str(len(inst.cities)) + ")")
-    print("Applying method: " + str(method))
-    print("The selected starting points are: " + str(sample) + "\n")
-    RCL_size = 1
-    results = []
-    counter = 0
-    for i in sample:
-        AlgorithmStartTime = time.time()
-        counter += 1
-        if counter % 10 == 0:
-            print("Calculating different starting points: " + str(counter) + "/" + str(n))
-        # This "for loop" solves the TSP for each starting point in "inst" instance
-        startingPoint = i
-        tour_cost_beforeLS = None
-        runningLS = False
-        if method == "NN":
-            tour, tourTracker = inst.getTour_NN(startingPoint)
-        elif method == "OI":
-            tour, tourTracker = inst.getTour_OutlierInsertion(startingPoint)
-        elif method == "OI_GRASP":
-            if RCL_size is 1:
-                RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
-            tour, tourTracker = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)  
-        elif method == "NN+2OPT":
-            runningLS = True
-            tour_beforeLS, tourTracker = inst.getTour_NN(startingPoint)
-            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
-        elif method == "OI+2OPT":
-            runningLS = True
-            tour_beforeLS, tourTracker = inst.getTour_OutlierInsertion(startingPoint)
-            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
-        elif method == "OI_GRASP+2OPT":
-            runningLS = True
-            if RCL_size is 1:
-                RCL_size = input("!!!! Select the size of the RCL (Restricted Candidate List): Type an integer \n !!! ")
-            tour_beforeLS, tourTracker = inst.getTour_GRASPedInsertion(startingPoint, RCL_size)
-            tour, tourTracker = inst.makeTwoOpt(tour_beforeLS, tourTracker)
-        else:
-            print(f"Selected method ({method}) is not supported or incorrectly written")
-            return
-        #print("Done computing from starting point " + str(startingPoint))
-        #print(type(tour_co t_beforeLS))
-        if runningLS == True:
-            #print("Cost before local search was:")
-            tour_cost_beforeLS = inst.evaluateSolution(tour_beforeLS)
-        tour_cost = inst.evaluateSolution(tour)
-        
-        AlgorithmEndtTime = time.time()
-        # Create a dictionary with the tour info (easier to convert to df)
-        results.append({
-            "File name" : fileName,
-            "Start city" : i,
-            "Partial cost" : tour_cost_beforeLS,
-            "Cost" : tour_cost,
-            "Computation time" : str((AlgorithmEndtTime - AlgorithmStartTime)),
-            "RCL size" : RCL_size,
-            "Tour" : tour
-        })
-        #output_NNH.write(str(fileName) + "," + str(startingPoint) + "," + str(tour_cost) + "\n")
-    
-    # Convert to DataFrame using pandas
-    df_results = pd.DataFrame(results)
-
-    # Save to CSV
-    df_results.to_csv("Results/Output_" + fileSize + "_" + fileName + "_" + str(method) + ".csv", index=False)
-
-    print("runForNStartingPoints is done \n\n")
-    return df_results, tourTracker, inst
 
 
 
@@ -873,7 +875,8 @@ def comparisonPlot_beforeAfterLS(df):
 
 # LEARN TO MAKE GRAPHS
 filePath = selectedFiles[3]
-df_p, tours, inst = runForNStartingPoints(filePath, 1, "NN+2OPT")
+inst = TSP(filePath)
+df_p, tours, inst = inst.runForNStartingPoints(filePath, 1, "NN+2OPT")
 #print(tours)
 
 
