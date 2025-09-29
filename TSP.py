@@ -771,9 +771,6 @@ Point 5: Write a method in the TSP class called isTwoOpt that takes a tour as in
 # Test code
 
 
-    
-
-
 # twoOptTest = TSP("point5_test.tsp")
 # initialTour = [0, 1, 4, 3, 2, 5, 6]
 # print("Initial tour is " + str(initialTour))
