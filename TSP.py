@@ -85,7 +85,8 @@ class TSP:
         
         self.nCities = len(points)
         self.cities = list(range(self.nCities))
-        
+        self.filePath = tspFileName
+
         #compute distance matrix, assume Euclidian TSP
         self.distMatrix = np.zeros((self.nCities,self.nCities)) #init as nxn matrix
         for i in range(self.nCities):
@@ -441,7 +442,7 @@ class TSP:
         return costs
     
     
-    def runForNStartingPoints(self, filePath, n, method):
+    def runForNStartingPoints(self, n, method):
 
         """
         Run the Nearest Neighbour Heuristics, from n different starting cities in 'inst' instance
@@ -463,8 +464,8 @@ class TSP:
         """
         
         #output_NNH = generate_output('Output_NNH')
-        fileName = (filePath.split("/")[-1]).split(".")[-2]
-        fileSize = (filePath.split("/")[-2])
+        fileName = (self.filePath.split("/")[-1]).split(".")[-2]
+        fileSize = (self.filePath.split("/")[-2])
         rList = self.generateRandomList(len(self.cities), n)
         sample = [ self.cities[i] for i in rList] # This is the list of sample cities for which we are going to solve the TSP
         print("\nSolving for instance: " + str(fileName) + " of size: " + str(fileSize) + " (" + str(len(self.cities)) + ")")
@@ -534,11 +535,76 @@ class TSP:
         df_results.to_csv("Results/Output_" + fileSize + "_" + fileName + "_" + str(method) + ".csv", index=False)
 
         print("runForNStartingPoints is done \n\n")
-        return df_results, tourTracker, self
+        return df_results, tourTracker
     
+
     def generateRandomList(self, size, amount):
         rList = sorted(random.sample(range(size), amount))
         return rList
+    
+    def plotPathCreation(self, tours):
+        plt.ion()  # turn on interactive mode
+        fig, ax = plt.subplots(figsize=(8,6))
+        cost_beforeLS = 0
+        for j in range(0, len(tours)):
+            ax.clear() 
+            #print(j)
+            coords = {}
+            with open(self.filePath, "r") as f:
+                for i, line in enumerate(f, start=1):  # enumerate lines starting from 1
+                    if i < 7:   # skip first 6 lines
+                        continue
+                    parts = line.strip().split()
+                    if parts[0] == 'EOF':   # skip empty lines (like EOF)
+                        continue
+                    city = int(parts[0])
+                    x, y = float(parts[1]), float(parts[2])
+                    coords[city] = (x, y)
+
+            # Example tour (must be in visiting order, and usually ends with start city)
+            tour = tours.copy()[j]    
+            cost = self.computeCosts(tour)
+            tour.append(tour[0])
+            tour = [city + 1 for city in tour]
+
+            # Extract x and y positions in order of the tour
+            x_tour = [coords[city][0] for city in tour]
+            y_tour = [coords[city][1] for city in tour]
+            
+            
+            # Plot
+            
+            #plt.figure(figsize=(8,6))
+            plt.scatter([coords[c][0] for c in coords], [coords[c][1] for c in coords], c='blue', s=50)
+
+            # Draw tour path
+            plt.plot(x_tour, y_tour, c='red', linewidth=2, marker='o')
+
+            # Annotate city indices
+            for city, (x, y) in coords.items():
+                plt.text(x+0.5, y+0.5, str(city), fontsize=9)
+
+            
+
+            plt.title("TSP Solution Tour")
+            
+            #ax.text(0.05, 0.95, f"Cost: {cost:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+            ax.text(0.05, 0.95, f"Cost (before/after LS): {cost:.2f}/{cost_beforeLS:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+
+            plt.xlabel("X")
+            plt.ylabel("Y")
+            plt.grid(False)
+            plt.tight_layout()
+            plt.draw()
+            if j < len(coords):
+                plt.pause(0.0015)   # short delay (0.5 sec)
+                cost_beforeLS = cost
+            else:
+                plt.pause(0.0025)
+
+        plt.ioff()    
+        plt.show()
+    
     
     
 ##############################################################################   
@@ -874,73 +940,15 @@ def comparisonPlot_beforeAfterLS(df):
 
 
 # LEARN TO MAKE GRAPHS
+
+
+
+
 filePath = selectedFiles[3]
 inst = TSP(filePath)
-df_p, tours, inst = inst.runForNStartingPoints(filePath, 1, "NN+2OPT")
-#print(tours)
+df_p, tours = inst.runForNStartingPoints(1, "NN+2OPT")
+inst.plotPathCreation(tours)
 
-
-plt.ion()  # turn on interactive mode
-fig, ax = plt.subplots(figsize=(8,6))
-cost_beforeLS = 0
-for j in range(0, len(tours)):
-    ax.clear() 
-    #print(j)
-    coords = {}
-    with open(filePath, "r") as f:
-        for i, line in enumerate(f, start=1):  # enumerate lines starting from 1
-            if i < 7:   # skip first 6 lines
-                continue
-            parts = line.strip().split()
-            if parts[0] == 'EOF':   # skip empty lines (like EOF)
-                continue
-            city = int(parts[0])
-            x, y = float(parts[1]), float(parts[2])
-            coords[city] = (x, y)
-
-    # Example tour (must be in visiting order, and usually ends with start city)
-    tour = tours.copy()[j]    
-    cost = inst.computeCosts(tour)
-    tour.append(tour[0])
-    tour = [city + 1 for city in tour]
-
-    # Extract x and y positions in order of the tour
-    x_tour = [coords[city][0] for city in tour]
-    y_tour = [coords[city][1] for city in tour]
-    
-    
-    # Plot
-    
-    #plt.figure(figsize=(8,6))
-    plt.scatter([coords[c][0] for c in coords], [coords[c][1] for c in coords], c='blue', s=50)
-
-    # Draw tour path
-    plt.plot(x_tour, y_tour, c='red', linewidth=2, marker='o')
-
-    # Annotate city indices
-    for city, (x, y) in coords.items():
-        plt.text(x+0.5, y+0.5, str(city), fontsize=9)
-
-    
-
-    plt.title("TSP Solution Tour")
-    
-    #ax.text(0.05, 0.95, f"Cost: {cost:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
-    ax.text(0.05, 0.95, f"Cost (before/after LS): {cost:.2f}/{cost_beforeLS:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
-
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.grid(False)
-    plt.tight_layout()
-    plt.draw()
-    if j < len(coords):
-        plt.pause(0.0015)   # short delay (0.5 sec)
-        cost_beforeLS = cost
-    else:
-        plt.pause(0.0025)
-
-plt.ioff()    
-plt.show()
 
 
 
